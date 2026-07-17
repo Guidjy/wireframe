@@ -17,6 +17,8 @@ func main() {
 		rl.SetTargetFPS(60)
 	}
 
+	rl.HideCursor()
+
 	cam := GetCamInstance()
 
 	for !rl.WindowShouldClose() {
