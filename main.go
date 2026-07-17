@@ -17,7 +17,7 @@ func main() {
 		rl.SetTargetFPS(60)
 	}
 
-	rl.HideCursor()
+	rl.DisableCursor()
 
 	cam := GetCamInstance()
 

@@ -13,8 +13,8 @@ var rotationOffset float64 = 0.0
 func drawEdge(v1 Vector3, v2 Vector3) {
 	cam := GetCamInstance()
 
-	p1 := cam.ProjectPoint(cam.AlignPoint(v1))
-	p2 := cam.ProjectPoint(cam.AlignPoint(v2))
+	p1 := cam.ProjectPoint(cam.WorldToCameraSpace(v1))
+	p2 := cam.ProjectPoint(cam.WorldToCameraSpace(v2))
 
 	rl.DrawLineV(p1, p2, rl.White)
 }

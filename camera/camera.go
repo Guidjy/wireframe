@@ -6,12 +6,15 @@ import (
 
 	config "github.com/Guidjy/wireframe/config"
 	. "github.com/gen2brain/raylib-go/raylib"
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 var cameraInstance *Cam
 var once sync.Once
 
-const movementSpeed = 50
+const movementSpeed = 35
+const mouseSensitivity = 0.003
+const maxPitch = float32(math.Pi/2) - 0.01 // used to prevent the camera fro flipping upside down
 
 type Cam struct {
 	eye     Vector3 // Camera position
@@ -48,10 +51,8 @@ func GetCamInstance() *Cam {
 	return cameraInstance
 }
 
-// TODO: review n and forward
-
-// Aligns camera and world space axes
-func (cam *Cam) ChangeBasis() {
+// Updates the camera's local nuv basis vectors (forward, right, up)
+func (cam *Cam) UpdateBasis() {
 	forward := cam.target.Subtract(cam.eye)
 
 	cam.forward = forward.Normalize()
@@ -59,11 +60,12 @@ func (cam *Cam) ChangeBasis() {
 	cam.cameraUp = cam.right.CrossProduct(cam.forward)
 }
 
-// Aligns a point in 3D space with the camera. Should be done after chagin bases
-func (cam Cam) AlignPoint(p Vector3) Vector3 {
+// Transforms a 3D point from world space into camera space
+func (cam Cam) WorldToCameraSpace(p Vector3) Vector3 {
 	relativeP := p.Subtract(cam.eye)
 	newPoint := relativeP
 
+	// rotates the point in world space so that the camera acts as the origin
 	newPoint.X = relativeP.DotProduct(cam.right)
 	newPoint.Y = relativeP.DotProduct(cam.cameraUp)
 	newPoint.Z = relativeP.DotProduct(cam.forward)
@@ -78,6 +80,7 @@ func (cam Cam) AlignPoint(p Vector3) Vector3 {
 	return newPoint
 }
 
+// Projects a point in 3D space onto the projection plane
 func (cam Cam) ProjectPoint(p3d Vector3) Vector2 {
 	var p2d Vector2
 
@@ -117,8 +120,30 @@ func (cam *Cam) handleKeyboardInput() {
 	cam.target = cam.target.Add(velocity)
 }
 
+func (cam *Cam) handleMouseMovement() {
+	delta := rl.GetMouseDelta()
+
+	cam.yaw -= delta.X * mouseSensitivity
+	cam.pitch -= delta.Y * mouseSensitivity
+
+	if cam.pitch > maxPitch {
+		cam.pitch = maxPitch
+	} else if cam.pitch < -maxPitch {
+		cam.pitch = -maxPitch
+	}
+
+	var forward Vector3
+	forward.X = float32(math.Cos(float64(cam.pitch)) * math.Sin(float64(cam.yaw)))
+	forward.Y = float32(math.Sin(float64(cam.pitch)))
+	forward.Z = float32(math.Cos(float64(cam.pitch)) * math.Cos(float64(cam.yaw)))
+
+	cam.target = cam.eye.Add(forward.Normalize())
+}
+
 func (cam *Cam) Update() {
+	cam.handleMouseMovement()
 	cam.handleKeyboardInput()
 
-	cam.ChangeBasis()
+	cam.UpdateBasis()
+
 }
