@@ -4,7 +4,7 @@ import (
 	"math"
 	"math/rand/v2"
 
-	camera "github.com/Guidjy/wireframe/camera"
+	"github.com/Guidjy/wireframe/camera"
 	config "github.com/Guidjy/wireframe/config"
 	. "github.com/gen2brain/raylib-go/raylib"
 )
@@ -29,8 +29,6 @@ type Terrain struct {
 
 	controlPointCount int
 
-	shouldCullHiddenFaces bool
-
 	shouldApplyShading bool
 
 	ball Ball
@@ -53,7 +51,6 @@ func b3(t float32) float32 {
 func (terrain *Terrain) Init() {
 	terrain.controlPointDeltaY = minControlPointDeltaY
 	terrain.controlPointCount = minControlPointCount
-	terrain.shouldCullHiddenFaces = true
 	terrain.shouldApplyShading = false
 
 	terrain.ball.init()
@@ -85,9 +82,7 @@ func (terrain *Terrain) GenerateTerrain() {
 		}
 	}
 
-	if terrain.shouldApplyShading {
-		terrain.calculateTerrainVertices()
-	}
+	terrain.calculateTerrainVertices()
 }
 
 // Returns an interpolated point in a patch of the B-Spline surface and it's normal vector
@@ -172,55 +167,49 @@ func (terrain Terrain) GetSurfacePoint(x float32, z float32) Vector3 {
 func (terrain Terrain) RenderWifreframe() {
 	cam := camera.GetCamInstance()
 
-	for i := 0; i < len(terrain.controlPoints)-3; i++ {
-		for j := 0; j < len(terrain.controlPoints)-3; j++ {
-
-			const step float32 = 0.25
-			for s := float32(0); s < 1.0; s += step {
-				for t := float32(0); t < 1.0; t += step {
-
-					p0, _ := terrain.calculateSplinePointAndNormal(i, j, s, t)           // bottom-left
-					p1, _ := terrain.calculateSplinePointAndNormal(i, j, s+step, t)      // top-left
-					p2, _ := terrain.calculateSplinePointAndNormal(i, j, s, t+step)      // bottom-right
-					p3, _ := terrain.calculateSplinePointAndNormal(i, j, s+step, t+step) // top-right
-
-					p0 = cam.WorldToCameraSpace(p0)
-					p1 = cam.WorldToCameraSpace(p1)
-					p2 = cam.WorldToCameraSpace(p2)
-					p3 = cam.WorldToCameraSpace(p3)
-
-					if terrain.shouldCullHiddenFaces {
-						edge1 := p1.Subtract(p0)
-						edge2 := p2.Subtract(p0)
-						normal := edge1.CrossProduct(edge2)
-
-						viewDir := p0
-						if viewDir.DotProduct(normal) > 0 {
-							continue
-						}
-					}
-
-					projectedP0 := cam.ProjectPoint(p0)
-					projectedP1 := cam.ProjectPoint(p1)
-					projectedP2 := cam.ProjectPoint(p2)
-					projectedP3 := cam.ProjectPoint(p3)
-
-					DrawLineV(projectedP0, projectedP1, White)
-					DrawLineV(projectedP1, projectedP3, White)
-					DrawLineV(projectedP3, projectedP2, White)
-					DrawLineV(projectedP2, projectedP0, White)
-					DrawLineV(projectedP0, projectedP3, White)
-				}
-			}
-
+	for i := 0; i < len(terrain.vertices); i += 4 {
+		if i+4 > len(terrain.vertices) {
+			return
 		}
+
+		p0 := terrain.vertices[i].pos
+		p1 := terrain.vertices[i+1].pos
+		p2 := terrain.vertices[i+2].pos
+		p3 := terrain.vertices[i+3].pos
+
+		p0 = cam.WorldToCameraSpace(p0)
+		p1 = cam.WorldToCameraSpace(p1)
+		p2 = cam.WorldToCameraSpace(p2)
+		p3 = cam.WorldToCameraSpace(p3)
+
+		if config.ShouldCullHiddenFaces {
+			edge1 := p1.Subtract(p0)
+			edge2 := p2.Subtract(p0)
+			normal := edge1.CrossProduct(edge2)
+
+			viewDir := p0
+			if viewDir.DotProduct(normal) > 0 {
+				continue
+			}
+		}
+
+		projectedP0 := cam.ProjectPoint(p0)
+		projectedP1 := cam.ProjectPoint(p1)
+		projectedP2 := cam.ProjectPoint(p2)
+		projectedP3 := cam.ProjectPoint(p3)
+
+		DrawLineV(projectedP0, projectedP1, White)
+		DrawLineV(projectedP1, projectedP3, White)
+		DrawLineV(projectedP3, projectedP2, White)
+		DrawLineV(projectedP2, projectedP0, White)
+		DrawLineV(projectedP0, projectedP3, White)
 	}
 
 }
 
 // Calculates all of the terrain's vertices and their normals, and stores them in terrain.vertices
 func (terrain *Terrain) calculateTerrainVertices() {
-	terrain.vertices = make([]vertex, 0)
+	terrain.vertices = terrain.vertices[:0]
 
 	for i := 0; i < len(terrain.controlPoints)-3; i++ {
 		for j := 0; j < len(terrain.controlPoints)-3; j++ {
@@ -295,7 +284,7 @@ func (terrain *Terrain) handleKeyboardInput() {
 	}
 	// toggle backface culling
 	if IsKeyPressed(KeyB) {
-		terrain.shouldCullHiddenFaces = !terrain.shouldCullHiddenFaces
+		config.ShouldCullHiddenFaces = !config.ShouldCullHiddenFaces
 	}
 }
 

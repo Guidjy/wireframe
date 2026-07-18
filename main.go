@@ -2,6 +2,7 @@ package main
 
 import (
 	. "github.com/Guidjy/wireframe/camera"
+	"github.com/Guidjy/wireframe/config"
 	. "github.com/Guidjy/wireframe/config"
 	. "github.com/Guidjy/wireframe/hud"
 	. "github.com/Guidjy/wireframe/terrain"
@@ -18,6 +19,8 @@ func main() {
 
 	var terrain Terrain
 	terrain.Init()
+
+	config.Init()
 
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
