@@ -6,13 +6,12 @@ import (
 
 	config "github.com/Guidjy/wireframe/config"
 	. "github.com/gen2brain/raylib-go/raylib"
-	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 var cameraInstance *Cam
 var once sync.Once
 
-const movementSpeed = 35
+const movementSpeed = 100
 const mouseSensitivity = 0.003
 const maxPitch = float32(math.Pi/2) - 0.01 // used to prevent the camera fro flipping upside down
 
@@ -121,7 +120,7 @@ func (cam *Cam) handleKeyboardInput() {
 }
 
 func (cam *Cam) handleMouseMovement() {
-	delta := rl.GetMouseDelta()
+	delta := GetMouseDelta()
 
 	cam.yaw -= delta.X * mouseSensitivity
 	cam.pitch -= delta.Y * mouseSensitivity

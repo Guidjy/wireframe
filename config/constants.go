@@ -7,4 +7,6 @@ const (
 	ShouldLimitFPS = false
 
 	CameraFolcaLength = 200
+
+	TerrainWidth = 2000
 )

@@ -21,6 +21,9 @@ func main() {
 
 	cam := GetCamInstance()
 
+	var terrain Terrain
+	terrain.Init()
+
 	for !rl.WindowShouldClose() {
 		rl.BeginDrawing()
 
@@ -31,6 +34,7 @@ func main() {
 		cam.Update()
 
 		RenderCube(2)
+		terrain.Update()
 
 		rl.EndDrawing()
 	}
