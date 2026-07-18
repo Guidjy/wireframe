@@ -11,7 +11,7 @@ import (
 var cameraInstance *Cam
 var once sync.Once
 
-const movementSpeed = 100
+const movementSpeed = 500
 const mouseSensitivity = 0.003
 const maxPitch = float32(math.Pi/2) - 0.01 // used to prevent the camera fro flipping upside down
 
@@ -35,7 +35,7 @@ func GetCamInstance() *Cam {
 	// once.Do guarantees that the function inside of it runs only once. Important for thread-safe initialization (probably not going to matter tho ¯\_(ツ)_/¯)
 	once.Do(func() {
 		cameraInstance = &Cam{
-			eye:         Vector3{X: 0, Y: 5, Z: -10},
+			eye:         Vector3{X: 0, Y: config.TerrainWidth / 2, Z: -config.TerrainWidth / 2},
 			target:      Vector3Zero(),
 			worldUp:     Vector3{X: 0, Y: 1, Z: 0},
 			yaw:         0,

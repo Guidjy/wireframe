@@ -7,7 +7,6 @@ import (
 	camera "github.com/Guidjy/wireframe/camera"
 	config "github.com/Guidjy/wireframe/config"
 	. "github.com/gen2brain/raylib-go/raylib"
-	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 const minControlPointDeltaY = 100
@@ -23,6 +22,8 @@ type Terrain struct {
 	controlPointCount int
 
 	shouldCullHiddenFaces bool
+
+	ball Ball
 }
 
 // B(t) B-Spline base functions
@@ -43,6 +44,9 @@ func (terrain *Terrain) Init() {
 	terrain.controlPointDeltaY = minControlPointDeltaY
 	terrain.controlPointCount = minControlPointCount
 	terrain.shouldCullHiddenFaces = true
+
+	terrain.ball.init()
+
 	terrain.GenerateTerrain()
 }
 
@@ -145,18 +149,32 @@ func (terrain Terrain) Render() {
 					p2 := terrain.calculateSplinePoint(i, j, s, t+step)      // bottom-right
 					p3 := terrain.calculateSplinePoint(i, j, s+step, t+step) // top-right
 
-					// TODO: backface culling
+					p0 = cam.WorldToCameraSpace(p0)
+					p1 = cam.WorldToCameraSpace(p1)
+					p2 = cam.WorldToCameraSpace(p2)
+					p3 = cam.WorldToCameraSpace(p3)
 
-					projectedP0 := cam.ProjectPoint(cam.WorldToCameraSpace(p0))
-					projectedP1 := cam.ProjectPoint(cam.WorldToCameraSpace(p1))
-					projectedP2 := cam.ProjectPoint(cam.WorldToCameraSpace(p2))
-					projectedP3 := cam.ProjectPoint(cam.WorldToCameraSpace(p3))
+					if terrain.shouldCullHiddenFaces {
+						edge1 := p1.Subtract(p0)
+						edge2 := p2.Subtract(p0)
+						normal := edge1.CrossProduct(edge2)
 
-					rl.DrawLineV(projectedP0, projectedP1, rl.White)
-					rl.DrawLineV(projectedP1, projectedP3, rl.White)
-					rl.DrawLineV(projectedP3, projectedP2, rl.White)
-					rl.DrawLineV(projectedP2, projectedP0, rl.White)
-					rl.DrawLineV(projectedP0, projectedP3, rl.White)
+						viewDir := p0
+						if viewDir.DotProduct(normal) > 0 {
+							continue
+						}
+					}
+
+					projectedP0 := cam.ProjectPoint(p0)
+					projectedP1 := cam.ProjectPoint(p1)
+					projectedP2 := cam.ProjectPoint(p2)
+					projectedP3 := cam.ProjectPoint(p3)
+
+					DrawLineV(projectedP0, projectedP1, White)
+					DrawLineV(projectedP1, projectedP3, White)
+					DrawLineV(projectedP3, projectedP2, White)
+					DrawLineV(projectedP2, projectedP0, White)
+					DrawLineV(projectedP0, projectedP3, White)
 				}
 			}
 
@@ -203,23 +221,30 @@ func (terrain *Terrain) updateControlPointCount(increase bool) {
 
 func (terrain *Terrain) handleKeyboardInput() {
 	// increase/decrease terrain hill size
-	if rl.IsKeyPressed(rl.KeyZ) {
+	if IsKeyPressed(KeyZ) {
 		terrain.updateControlPointDeltaY(true)
 	}
-	if rl.IsKeyPressed(rl.KeyX) {
+	if IsKeyPressed(KeyX) {
 		terrain.updateControlPointDeltaY(false)
 	}
 	// increase/decrease terrain resolution
-	if rl.IsKeyPressed(rl.KeyC) {
+	if IsKeyPressed(KeyC) {
 		terrain.updateControlPointCount(true)
 	}
-	if rl.IsKeyPressed(rl.KeyV) {
+	if IsKeyPressed(KeyV) {
 		terrain.updateControlPointCount(false)
+	}
+	// toggle backface culling
+	if IsKeyPressed(KeyB) {
+		terrain.shouldCullHiddenFaces = !terrain.shouldCullHiddenFaces
 	}
 }
 
 func (terrain *Terrain) Update() {
 	terrain.handleKeyboardInput()
-
 	terrain.Render()
+
+	terrain.ball.Update()
+	terrain.ball.Pos.Y = terrain.GetSurfacePoint(terrain.ball.Pos.X, terrain.ball.Pos.Z).Y + terrain.ball.Radius/2
+
 }
