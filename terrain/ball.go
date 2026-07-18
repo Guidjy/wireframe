@@ -7,9 +7,9 @@ import (
 	. "github.com/gen2brain/raylib-go/raylib"
 )
 
-const acceleration float32 = 200000.0
-const friction float32 = 0.99
-const maxVelocity = 100000.0
+const acceleration float32 = 50000.0
+const friction float32 = 0.98
+const maxVelocity = 25000.0
 
 type Ball struct {
 	Pos Vector3
@@ -76,10 +76,10 @@ func (ball *Ball) handleKeyboardInput() {
 		dir.Y = -1
 	}
 	if IsKeyDown(KeyLeft) {
-		dir.X = -1
+		dir.X = 1
 	}
 	if IsKeyDown(KeyRight) {
-		dir.X = 1
+		dir.X = -1
 	}
 
 	ball.move(dir)

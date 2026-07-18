@@ -14,14 +14,24 @@ const maxControlPointDeltaY = 700
 const minControlPointCount = 10
 const maxControlPointCount = 30
 
+type vertex struct {
+	pos Vector3
+
+	normal Vector3
+}
+
 type Terrain struct {
 	controlPoints [][]Vector3
+
+	vertices []vertex
 
 	controlPointDeltaY int
 
 	controlPointCount int
 
 	shouldCullHiddenFaces bool
+
+	shouldApplyShading bool
 
 	ball Ball
 }
@@ -44,6 +54,7 @@ func (terrain *Terrain) Init() {
 	terrain.controlPointDeltaY = minControlPointDeltaY
 	terrain.controlPointCount = minControlPointCount
 	terrain.shouldCullHiddenFaces = true
+	terrain.shouldApplyShading = false
 
 	terrain.ball.init()
 
@@ -73,30 +84,51 @@ func (terrain *Terrain) GenerateTerrain() {
 			terrain.controlPoints[i][j] = controlPoint
 		}
 	}
+
+	if terrain.shouldApplyShading {
+		terrain.calculateTerrainVertices()
+	}
 }
 
-// Returns an interpolated point in a patch of the B-Spline surface
-func (terrain Terrain) calculateSplinePoint(patchX int, patchZ int, s float32, t float32) Vector3 {
+// Returns an interpolated point in a patch of the B-Spline surface and it's normal vector
+func (terrain Terrain) calculateSplinePointAndNormal(patchX int, patchZ int, s float32, t float32) (Vector3, Vector3) {
 	// A point in a patch of the B-Spline surface is defined by this formula:
 	// Q(s, t) = ∑[𝑖=0, 3] ∑[𝑖=0, 3] 𝑃i,j * Bi(s) * Bj(t)
 	// Each patch of the surface is defined by a 4x4 block of control points
 
-	p := Vector3Zero() // Q(s, t)
+	p0 := Vector3Zero() // Q(s, t)
+	p1 := Vector3Zero() // Q(s+0.01, t)
+	p2 := Vector3Zero() // Q(s, t+0.01)
 
 	// weights of the base functions for s and t
-	bs := []float32{b0(s), b1(s), b2(s), b3(s)}
-	bt := []float32{b0(t), b1(t), b2(t), b3(t)}
+	bs0 := []float32{b0(s), b1(s), b2(s), b3(s)}
+	bt0 := []float32{b0(t), b1(t), b2(t), b3(t)}
+
+	bs1 := []float32{b0(s + 0.01), b1(s + 0.01), b2(s + 0.01), b3(s + 0.01)}
+	bt1 := bt0
+
+	bs2 := bs0
+	bt2 := []float32{b0(t + 0.01), b1(t + 0.01), b2(t + 0.01), b3(t + 0.01)}
 
 	// Sum of the influences of the 4x4 control points (∑[𝑖=0, 3] ∑[𝑖=0, 3] 𝑃i,j * Bi(s) * Bj(t))
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			controlPoint := terrain.controlPoints[patchX+i][patchZ+j] // Pij
-			weight := bs[i] * bt[j]                                   // Bi(s) * Bj(t)
-			p = p.Add(controlPoint.Scale(weight))                     // Adds weighted influence of controlPoints[i][j]
+
+			weight := bs0[i] * bt0[j]               // Bi(s) * Bj(t)
+			p0 = p0.Add(controlPoint.Scale(weight)) // Adds weighted influence of controlPoints[i][j]
+
+			weight = bs1[i] * bt1[j]
+			p1 = p1.Add(controlPoint.Scale(weight))
+
+			weight = bs2[i] * bt2[j]
+			p2 = p2.Add(controlPoint.Scale(weight))
 		}
 	}
 
-	return p
+	normal := p1.Subtract(p0).CrossProduct(p2.Subtract(p0)).Normalize()
+
+	return p0, normal
 }
 
 // Returns a point in the terrain surface given global (x, z) coordinates
@@ -131,10 +163,13 @@ func (terrain Terrain) GetSurfacePoint(x float32, z float32) Vector3 {
 		t = 1.0
 	}
 
-	return terrain.calculateSplinePoint(patchX, patchZ, s, t)
+	p, _ := terrain.calculateSplinePointAndNormal(patchX, patchZ, s, t)
+
+	return p
 }
 
-func (terrain Terrain) Render() {
+// Renders the terrain as a wireframe mesh
+func (terrain Terrain) RenderWifreframe() {
 	cam := camera.GetCamInstance()
 
 	for i := 0; i < len(terrain.controlPoints)-3; i++ {
@@ -144,10 +179,10 @@ func (terrain Terrain) Render() {
 			for s := float32(0); s < 1.0; s += step {
 				for t := float32(0); t < 1.0; t += step {
 
-					p0 := terrain.calculateSplinePoint(i, j, s, t)           // bottom-left
-					p1 := terrain.calculateSplinePoint(i, j, s+step, t)      // top-left
-					p2 := terrain.calculateSplinePoint(i, j, s, t+step)      // bottom-right
-					p3 := terrain.calculateSplinePoint(i, j, s+step, t+step) // top-right
+					p0, _ := terrain.calculateSplinePointAndNormal(i, j, s, t)           // bottom-left
+					p1, _ := terrain.calculateSplinePointAndNormal(i, j, s+step, t)      // top-left
+					p2, _ := terrain.calculateSplinePointAndNormal(i, j, s, t+step)      // bottom-right
+					p3, _ := terrain.calculateSplinePointAndNormal(i, j, s+step, t+step) // top-right
 
 					p0 = cam.WorldToCameraSpace(p0)
 					p1 = cam.WorldToCameraSpace(p1)
@@ -175,6 +210,30 @@ func (terrain Terrain) Render() {
 					DrawLineV(projectedP3, projectedP2, White)
 					DrawLineV(projectedP2, projectedP0, White)
 					DrawLineV(projectedP0, projectedP3, White)
+				}
+			}
+
+		}
+	}
+
+}
+
+// Calculates all of the terrain's vertices and their normals, and stores them in terrain.vertices
+func (terrain *Terrain) calculateTerrainVertices() {
+	terrain.vertices = make([]vertex, 0)
+
+	for i := 0; i < len(terrain.controlPoints)-3; i++ {
+		for j := 0; j < len(terrain.controlPoints)-3; j++ {
+
+			const step float32 = 0.25
+			for s := float32(0); s < 1.0; s += step {
+				for t := float32(0); t < 1.0; t += step {
+					v0, n0 := terrain.calculateSplinePointAndNormal(i, j, s, t)           // bottom-left
+					v1, n1 := terrain.calculateSplinePointAndNormal(i, j, s+step, t)      // top-left
+					v2, n2 := terrain.calculateSplinePointAndNormal(i, j, s, t+step)      // bottom-right
+					v3, n3 := terrain.calculateSplinePointAndNormal(i, j, s+step, t+step) // top-right
+
+					terrain.vertices = append(terrain.vertices, vertex{v0, n0}, vertex{v1, n1}, vertex{v2, n2}, vertex{v3, n3})
 				}
 			}
 
@@ -242,7 +301,7 @@ func (terrain *Terrain) handleKeyboardInput() {
 
 func (terrain *Terrain) Update() {
 	terrain.handleKeyboardInput()
-	terrain.Render()
+	terrain.RenderWifreframe()
 
 	terrain.ball.Update()
 	terrain.ball.Pos.Y = terrain.GetSurfacePoint(terrain.ball.Pos.X, terrain.ball.Pos.Z).Y + terrain.ball.Radius/2
