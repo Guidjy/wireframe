@@ -3,7 +3,6 @@ package main
 import (
 	. "github.com/Guidjy/wireframe/camera"
 	"github.com/Guidjy/wireframe/config"
-	. "github.com/Guidjy/wireframe/config"
 	. "github.com/Guidjy/wireframe/hud"
 	. "github.com/Guidjy/wireframe/terrain"
 	rl "github.com/gen2brain/raylib-go/raylib"
@@ -11,7 +10,7 @@ import (
 
 func main() {
 
-	rl.InitWindow(ScreenWidth, ScreenHeight, "Guidjy's Wireframe")
+	rl.InitWindow(config.ScreenWidth, config.ScreenHeight, "Guidjy's Wireframe")
 
 	rl.DisableCursor()
 

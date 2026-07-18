@@ -1,11 +1,14 @@
 package terrain
 
 import (
+	"cmp"
 	"math"
 	"math/rand/v2"
+	"slices"
 
 	"github.com/Guidjy/wireframe/camera"
 	config "github.com/Guidjy/wireframe/config"
+	. "github.com/Guidjy/wireframe/lighting"
 	. "github.com/gen2brain/raylib-go/raylib"
 )
 
@@ -14,24 +17,18 @@ const maxControlPointDeltaY = 700
 const minControlPointCount = 10
 const maxControlPointCount = 30
 
-type vertex struct {
-	pos Vector3
-
-	normal Vector3
-}
-
 type Terrain struct {
 	controlPoints [][]Vector3
 
-	vertices []vertex
+	vertices []Vertex
 
 	controlPointDeltaY int
 
 	controlPointCount int
 
-	shouldApplyShading bool
-
 	ball Ball
+
+	sun LightSource
 }
 
 // B(t) B-Spline base functions
@@ -51,9 +48,10 @@ func b3(t float32) float32 {
 func (terrain *Terrain) Init() {
 	terrain.controlPointDeltaY = minControlPointDeltaY
 	terrain.controlPointCount = minControlPointCount
-	terrain.shouldApplyShading = false
 
 	terrain.ball.init()
+
+	terrain.sun.Init(Vector3{X: 0, Y: 200, Z: 0})
 
 	terrain.GenerateTerrain()
 }
@@ -163,6 +161,30 @@ func (terrain Terrain) GetSurfacePoint(x float32, z float32) Vector3 {
 	return p
 }
 
+// Calculates all of the terrain's vertices and their normals, and stores them in terrain.vertices
+func (terrain *Terrain) calculateTerrainVertices() {
+	terrain.vertices = terrain.vertices[:0]
+
+	for i := 0; i < len(terrain.controlPoints)-3; i++ {
+		for j := 0; j < len(terrain.controlPoints)-3; j++ {
+
+			const step float32 = 0.25
+			for s := float32(0); s < 1.0; s += step {
+				for t := float32(0); t < 1.0; t += step {
+					v0, n0 := terrain.calculateSplinePointAndNormal(i, j, s, t)           // bottom-left
+					v1, n1 := terrain.calculateSplinePointAndNormal(i, j, s+step, t)      // top-left
+					v2, n2 := terrain.calculateSplinePointAndNormal(i, j, s+step, t+step) // top-right
+					v3, n3 := terrain.calculateSplinePointAndNormal(i, j, s, t+step)      // bottom-right
+
+					terrain.vertices = append(terrain.vertices, Vertex{v0, n0, Green}, Vertex{v1, n1, Green}, Vertex{v2, n2, Green}, Vertex{v3, n3, Green})
+				}
+			}
+
+		}
+	}
+
+}
+
 // Renders the terrain as a wireframe mesh
 func (terrain Terrain) RenderWifreframe() {
 	cam := camera.GetCamInstance()
@@ -172,10 +194,10 @@ func (terrain Terrain) RenderWifreframe() {
 			return
 		}
 
-		p0 := terrain.vertices[i].pos
-		p1 := terrain.vertices[i+1].pos
-		p2 := terrain.vertices[i+2].pos
-		p3 := terrain.vertices[i+3].pos
+		p0 := terrain.vertices[i].Pos
+		p1 := terrain.vertices[i+1].Pos
+		p2 := terrain.vertices[i+2].Pos
+		p3 := terrain.vertices[i+3].Pos
 
 		p0 = cam.WorldToCameraSpace(p0)
 		p1 = cam.WorldToCameraSpace(p1)
@@ -193,40 +215,47 @@ func (terrain Terrain) RenderWifreframe() {
 			}
 		}
 
-		projectedP0 := cam.ProjectPoint(p0)
-		projectedP1 := cam.ProjectPoint(p1)
-		projectedP2 := cam.ProjectPoint(p2)
-		projectedP3 := cam.ProjectPoint(p3)
+		projectedP0, _ := cam.ProjectPoint(p0)
+		projectedP1, _ := cam.ProjectPoint(p1)
+		projectedP2, _ := cam.ProjectPoint(p2)
+		projectedP3, _ := cam.ProjectPoint(p3)
 
 		DrawLineV(projectedP0, projectedP1, White)
-		DrawLineV(projectedP1, projectedP3, White)
-		DrawLineV(projectedP3, projectedP2, White)
-		DrawLineV(projectedP2, projectedP0, White)
-		DrawLineV(projectedP0, projectedP3, White)
+		DrawLineV(projectedP1, projectedP2, White)
+		DrawLineV(projectedP2, projectedP3, White)
+		DrawLineV(projectedP3, projectedP0, White)
+		DrawLineV(projectedP0, projectedP2, White)
 	}
 
 }
 
-// Calculates all of the terrain's vertices and their normals, and stores them in terrain.vertices
-func (terrain *Terrain) calculateTerrainVertices() {
-	terrain.vertices = terrain.vertices[:0]
+func (terrain Terrain) rasterize(v0, v1, v2 Vertex) {
+	//cam := camera.GetCamInstance()
 
-	for i := 0; i < len(terrain.controlPoints)-3; i++ {
-		for j := 0; j < len(terrain.controlPoints)-3; j++ {
+	// sorts vertices by their y value
+	vertices := []Vertex{v0, v1, v2}
+	slices.SortFunc(vertices, func(va, vb Vertex) int {
+		return cmp.Compare(va.Pos.Y, vb.Pos.Y)
+	})
 
-			const step float32 = 0.25
-			for s := float32(0); s < 1.0; s += step {
-				for t := float32(0); t < 1.0; t += step {
-					v0, n0 := terrain.calculateSplinePointAndNormal(i, j, s, t)           // bottom-left
-					v1, n1 := terrain.calculateSplinePointAndNormal(i, j, s+step, t)      // top-left
-					v2, n2 := terrain.calculateSplinePointAndNormal(i, j, s, t+step)      // bottom-right
-					v3, n3 := terrain.calculateSplinePointAndNormal(i, j, s+step, t+step) // top-right
+	// paints top part of the triangle
+	stepXShort := (vertices[0].Pos.X - vertices[1].Pos.X) / (vertices[0].Pos.Y - vertices[1].Pos.Y)
+	stepXLong := (vertices[0].Pos.X - vertices[2].Pos.X) / (vertices[0].Pos.Y - vertices[2].Pos.Y)
 
-					terrain.vertices = append(terrain.vertices, vertex{v0, n0}, vertex{v1, n1}, vertex{v2, n2}, vertex{v3, n3})
-				}
-			}
+	x1 := vertices[0].Pos.X
+	x2 := vertices[0].Pos.X
 
+	for y := vertices[0].Pos.Y; y < vertices[1].Pos.Y; y++ {
+		//startX := min(x1, x2)
+		//endX := max(x1, x2)
+
+		for x := x1; x < x2; x++ {
+			// calculate (x, y) piel depth and potentially update zbuffer
+			// calculate pixel color and paint
 		}
+
+		x1 += stepXShort
+		x2 += stepXLong
 	}
 
 }

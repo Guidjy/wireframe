@@ -29,11 +29,15 @@ type Cam struct {
 
 	focalLength float32 // Distance from the projection plane
 
+	zBuffer ZBuffer
 }
 
 func GetCamInstance() *Cam {
 	// once.Do guarantees that the function inside of it runs only once. Important for thread-safe initialization (probably not going to matter tho ¯\_(ツ)_/¯)
 	once.Do(func() {
+		var zBuffer ZBuffer
+		zBuffer.Init()
+
 		cameraInstance = &Cam{
 			eye:         Vector3{X: 0, Y: config.TerrainWidth / 2, Z: -config.TerrainWidth / 2},
 			target:      Vector3Zero(),
@@ -80,7 +84,7 @@ func (cam Cam) WorldToCameraSpace(p Vector3) Vector3 {
 }
 
 // Projects a point in 3D space onto the projection plane
-func (cam Cam) ProjectPoint(p3d Vector3) Vector2 {
+func (cam Cam) ProjectPoint(p3d Vector3) (Vector2, float32) {
 	var p2d Vector2
 
 	projectedX := p3d.X * cam.focalLength / p3d.Z
@@ -89,7 +93,8 @@ func (cam Cam) ProjectPoint(p3d Vector3) Vector2 {
 	// Centers points on screen.
 	p2d.X = projectedX + float32(config.ScreenWidth)/2.0
 	p2d.Y = -projectedY + float32(config.ScreenHeight)/2.0
-	return p2d
+
+	return p2d, p3d.Z
 }
 
 func (cam *Cam) handleKeyboardInput() {
