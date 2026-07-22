@@ -1,6 +1,7 @@
 # wireframe
-A simple 3D terrain visualizer written in Go. When developing this project, I quickly found out how mildly inconvenient it is to do any form of computer graphics programming in a language without support for classes, static fields/methods, operator overloading, and even implicit narrowing conversions. Nevertheless, I wanted to try out Golang, so I thought I'd rewrite something I'm familiar with even if it may not be the best use case for the language. I used [raylib](https://github.com/raysan5/raylib) and [raylib-go](https://github.com/gen2brain/raylib-go) for creating windows and drawing lines/vertices, and did the rest of the rendering on the cpu. Features include:
+A simple 3D terrain visualizer written in Go. When developing this project, I quickly found out how mildly inconvenient it is to do any form of computer graphics programming in a language without support for classes, static fields/methods, operator overloading, and even implicit narrowing conversions. Nevertheless, I wanted to try out Golang, so I thought I'd rewrite something I'm familiar with even if it may not be the best use case for the language. I used [raylib](https://github.com/raysan5/raylib) and [raylib-go](https://github.com/gen2brain/raylib-go) for creating windows and drawing lines/vertices, and did the rest of the rendering on the cpu. 
 
+Features include:
 - A fully controllable camera in 3d space
 - A controllable sphere along the terrain's surface
 - Variable terrain hill size and mesh resolution

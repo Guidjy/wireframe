@@ -8,7 +8,7 @@ import (
 )
 
 func DisplayHUD() {
-	rl.DrawText(fmt.Sprintf("Current FPS: %d", rl.GetFPS()), ScreenWidth-185, 0, 20, rl.LightGray)
+	rl.DrawText(fmt.Sprintf("Current FPS: %d", rl.GetFPS()), ScreenWidth-200, 0, 20, rl.LightGray)
 
 	rl.DrawText("Move camera: WASD - QE", 2, 0, 20, rl.LightGray)
 	rl.DrawText("Move ball: Arrow Keys", 2, 22, 20, rl.LightGray)
