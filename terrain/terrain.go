@@ -1,10 +1,8 @@
 package terrain
 
 import (
-	"cmp"
 	"math"
 	"math/rand/v2"
-	"slices"
 
 	"github.com/Guidjy/wireframe/camera"
 	config "github.com/Guidjy/wireframe/config"
@@ -16,6 +14,7 @@ const minControlPointDeltaY = 100
 const maxControlPointDeltaY = 700
 const minControlPointCount = 10
 const maxControlPointCount = 30
+const ambientLight = 0.2
 
 type Terrain struct {
 	controlPoints [][]Vector3
@@ -119,7 +118,7 @@ func (terrain Terrain) calculateSplinePointAndNormal(patchX int, patchZ int, s f
 		}
 	}
 
-	normal := p1.Subtract(p0).CrossProduct(p2.Subtract(p0)).Normalize()
+	normal := p2.Subtract(p0).CrossProduct(p1.Subtract(p0)).Normalize()
 
 	return p0, normal
 }
@@ -161,7 +160,7 @@ func (terrain Terrain) GetSurfacePoint(x float32, z float32) Vector3 {
 	return p
 }
 
-// Calculates all of the terrain's vertices and their normals, and stores them in terrain.vertices
+// Calculates all of the terrain's vertices, their normals and their color, and stores them in terrain.vertices
 func (terrain *Terrain) calculateTerrainVertices() {
 	terrain.vertices = terrain.vertices[:0]
 
@@ -176,7 +175,16 @@ func (terrain *Terrain) calculateTerrainVertices() {
 					v2, n2 := terrain.calculateSplinePointAndNormal(i, j, s+step, t+step) // top-right
 					v3, n3 := terrain.calculateSplinePointAndNormal(i, j, s, t+step)      // bottom-right
 
-					terrain.vertices = append(terrain.vertices, Vertex{v0, n0, Green}, Vertex{v1, n1, Green}, Vertex{v2, n2, Green}, Vertex{v3, n3, Green})
+					colorMultiplier0 := max(n0.DotProduct(DirectionToLightSource(v0, terrain.sun)), ambientLight)
+					colorMultiplier1 := max(n1.DotProduct(DirectionToLightSource(v1, terrain.sun)), ambientLight)
+					colorMultiplier2 := max(n2.DotProduct(DirectionToLightSource(v2, terrain.sun)), ambientLight)
+					colorMultiplier3 := max(n3.DotProduct(DirectionToLightSource(v3, terrain.sun)), ambientLight)
+
+					terrain.vertices = append(terrain.vertices,
+						Vertex{v0, n0, MultiplyColorByFLoat(Green, colorMultiplier0)},
+						Vertex{v1, n1, MultiplyColorByFLoat(Green, colorMultiplier1)},
+						Vertex{v2, n2, MultiplyColorByFLoat(Green, colorMultiplier2)},
+						Vertex{v3, n3, MultiplyColorByFLoat(Green, colorMultiplier3)})
 				}
 			}
 
@@ -226,38 +234,35 @@ func (terrain Terrain) RenderWifreframe() {
 		DrawLineV(projectedP3, projectedP0, White)
 		DrawLineV(projectedP0, projectedP2, White)
 	}
-
 }
 
-func (terrain Terrain) rasterize(v0, v1, v2 Vertex) {
-	//cam := camera.GetCamInstance()
+// renders the terrain with solid colors
+func (terrain Terrain) RenderSolid() {
+	cam := camera.GetCamInstance()
 
-	// sorts vertices by their y value
-	vertices := []Vertex{v0, v1, v2}
-	slices.SortFunc(vertices, func(va, vb Vertex) int {
-		return cmp.Compare(va.Pos.Y, vb.Pos.Y)
-	})
-
-	// paints top part of the triangle
-	stepXShort := (vertices[0].Pos.X - vertices[1].Pos.X) / (vertices[0].Pos.Y - vertices[1].Pos.Y)
-	stepXLong := (vertices[0].Pos.X - vertices[2].Pos.X) / (vertices[0].Pos.Y - vertices[2].Pos.Y)
-
-	x1 := vertices[0].Pos.X
-	x2 := vertices[0].Pos.X
-
-	for y := vertices[0].Pos.Y; y < vertices[1].Pos.Y; y++ {
-		//startX := min(x1, x2)
-		//endX := max(x1, x2)
-
-		for x := x1; x < x2; x++ {
-			// calculate (x, y) piel depth and potentially update zbuffer
-			// calculate pixel color and paint
+	// clears zbuffer
+	for x := 0; x < config.ScreenWidth; x++ {
+		for y := 0; y < config.ScreenHeight; y++ {
+			cam.ZBuffer.Depth[x][y] = float32(math.Inf(1))
+			cam.ZBuffer.Color[x][y] = DarkGray // Or your preferred screen background color
 		}
-
-		x1 += stepXShort
-		x2 += stepXLong
 	}
 
+	// draws 2 triangles by grid square
+	for i := 0; i < len(terrain.vertices); i += 4 {
+		if i+3 >= len(terrain.vertices) {
+			break
+		}
+		Rasterize(terrain.vertices[i], terrain.vertices[i+1], terrain.vertices[i+2])
+		Rasterize(terrain.vertices[i], terrain.vertices[i+2], terrain.vertices[i+3])
+	}
+
+	// actually colors the pixels on screen
+	for x := 0; x < config.ScreenWidth; x++ {
+		for y := 0; y < config.ScreenHeight; y++ {
+			DrawPixel(int32(x), int32(y), cam.ZBuffer.Color[x][y])
+		}
+	}
 }
 
 func (terrain *Terrain) updateControlPointDeltaY(increase bool) {
@@ -315,13 +320,22 @@ func (terrain *Terrain) handleKeyboardInput() {
 	if IsKeyPressed(KeyB) {
 		config.ShouldCullHiddenFaces = !config.ShouldCullHiddenFaces
 	}
+	// toggle rasterization
+	if IsKeyPressed(KeyR) {
+		config.ShouldRasterizeTerrain = !config.ShouldRasterizeTerrain
+	}
 }
 
 func (terrain *Terrain) Update() {
 	terrain.handleKeyboardInput()
-	terrain.RenderWifreframe()
 
-	terrain.ball.Update()
-	terrain.ball.Pos.Y = terrain.GetSurfacePoint(terrain.ball.Pos.X, terrain.ball.Pos.Z).Y + terrain.ball.Radius/2
+	if config.ShouldRasterizeTerrain {
+		terrain.RenderSolid()
+	} else {
+		terrain.RenderWifreframe()
+
+		terrain.ball.Update()
+		terrain.ball.Pos.Y = terrain.GetSurfacePoint(terrain.ball.Pos.X, terrain.ball.Pos.Z).Y + terrain.ball.Radius/2
+	}
 
 }

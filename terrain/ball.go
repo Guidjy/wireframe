@@ -7,9 +7,9 @@ import (
 	. "github.com/gen2brain/raylib-go/raylib"
 )
 
-const acceleration float32 = 50000.0
+const acceleration float32 = 500000.0
 const friction float32 = 0.98
-const maxVelocity = 25000.0
+const maxVelocity = 100000.0
 
 type Ball struct {
 	Pos Vector3

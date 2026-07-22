@@ -26,10 +26,10 @@ func main() {
 
 		rl.ClearBackground(rl.DarkGray)
 
-		DisplayHUD()
-
 		cam.Update()
 		terrain.Update()
+
+		DisplayHUD()
 
 		rl.EndDrawing()
 	}

@@ -23,7 +23,7 @@ func (zb *ZBuffer) Init() {
 
 		for j := 0; j < config.ScreenHeight; j++ {
 			zb.Depth[i][j] = float32(math.Inf(1))
-			zb.Color[i][j] = Black
+			zb.Color[i][j] = DarkGray
 		}
 	}
 }

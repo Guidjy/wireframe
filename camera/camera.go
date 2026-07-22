@@ -29,7 +29,7 @@ type Cam struct {
 
 	focalLength float32 // Distance from the projection plane
 
-	zBuffer ZBuffer
+	ZBuffer ZBuffer
 }
 
 func GetCamInstance() *Cam {
@@ -48,6 +48,7 @@ func GetCamInstance() *Cam {
 			right:       Vector3Zero(),
 			cameraUp:    Vector3Zero(),
 			focalLength: config.CameraFolcaLength,
+			ZBuffer:     zBuffer,
 		}
 	})
 

@@ -15,4 +15,5 @@ func DisplayHUD() {
 	rl.DrawText("Increase/Decrease Hill Size: Z/X", 2, 44, 20, rl.LightGray)
 	rl.DrawText("Increase/Decrease Terrain Resolution: C/V", 2, 66, 20, rl.LightGray)
 	rl.DrawText("Toggle Backface Culling: B", 2, 88, 20, rl.LightGray)
+	rl.DrawText("Toggle Terrain Rasterization: R", 2, 110, 20, rl.LightGray)
 }
